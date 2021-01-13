@@ -78,20 +78,19 @@ load_prs <- function(prs_file, pheno, sep = "\t", row.names = 1) {
 }
 
 # plotting PRS histograms
-prs_hist_cc <- function(df, title = "PRS Histogram - Case vs Control") {
-  return(ggplot(df, aes(x = PRS, fill = Phenotype)) +
-           geom_histogram(color = "black", position = "identity", alpha = 0.5) +
-           theme(legend.position = "bottom") +
+prs_hist <- function(g, title = "PRS Histogram", color = "black", position = "identity", alpha = 0.5, legend.position = "bottom", hjust = 0.5) {
+  return(g + geom_histogram(color = color, position = position, alpha = alpha) +
+           theme(legend.position = legend.position) +
            ggtitle(title) +
-           theme(plot.title = element_text(hjust = 0.5)))
+           theme(plot.title = element_text(hjust = hjust)))
+}
+
+prs_hist_cc <- function(df, title = "PRS Histogram - Case vs Control") {
+  return(prs_hist(ggplot(df, aes(x = PRS, fill = Phenotype)), title = title))
 }
 
 prs_hist_cc_partition <- function(df, partition, title = "PRS Histogram - Case vs Control") {
-  return(ggplot(df[df$PRS.Partition == partition,], aes(x = PRS, fill = Phenotype)) +
-           geom_histogram(color = "black", position = "identity", alpha = 0.5) +
-           theme(legend.position = "bottom") +
-           ggtitle(title) +
-           theme(plot.title = element_text(hjust = 0.5)))
+  return(prs_hist(ggplot(df[df$PRS.Partition == partition,], aes(x = PRS, fill = Phenotype)), title = title))
 }
 
 prs_hist_partition_merge <- function(df, phenotype = NA, title = "PRS Histogram - Case vs Control") {
@@ -100,11 +99,7 @@ prs_hist_partition_merge <- function(df, phenotype = NA, title = "PRS Histogram 
   } else {
     new_df <- df
   }
-  return(ggplot(new_df, aes(x = PRS, fill = PRS.Partition)) +
-           geom_histogram(color = "black", position = "identity", alpha = 0.5) +
-           theme(legend.position = "bottom") +
-           ggtitle(title) +
-           theme(plot.title = element_text(hjust = 0.5)))
+  return(prs_hist(ggplot(new_df, aes(x = PRS, fill = PRS.Partition)), title = title))
 }
 
 prs_violin_cc_partition <- function(df, title = "PRS Violin Plots - Case vs Control") {
