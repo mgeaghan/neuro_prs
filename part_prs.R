@@ -107,3 +107,64 @@ prs_violin_cc_partition <- function(df, title = "PRS Violin Plots - Case vs Cont
            geom_violin(aes(x = Phenotype, y = PRS, fill = Phenotype)) +
            facet_wrap(~ PRS.Partition, ncol = 4, scales = "free_y"))
 }
+
+# label and count extreme PRS values
+prs_extremes <- function(df, frac, subsets = NA) {
+  # given a fraction, identify and label each PRS as "TOP", "BOTTOM", or "MIDDLE" depending on whether it is in the top, bottom, or middle fraction of PRS
+  # PRS quantiles are calculated relative to the groups in the given column
+  # additionally, add three count columns, giving the total number of PRS within the top, bottom, and middle fractions of scores
+  new_df <- df
+  new_df$PRS.Partition <- as.character(new_df$PRS.Partition)
+  if(!is.na(subsets)) {
+    new_subsets <- subsets[!(subsets == "PRS.Partition")]
+    if (length(new_subsets) == 0) {
+      new_subsets <- NA
+      quantile_col <- "PRS.Quantile.Partition"
+      quantile_count_col <- "PRS.Quantile.Count.Paritition"
+    } else {
+      for(s in new_subsets) {
+        new_df[[s]] <- as.character(new_df[[s]])
+      }
+      quantile_col <- paste("PRS.Quantile.Partition", paste(new_subsets, collapse = "."), sep = ".")
+      quantile_count_col <- paste("PRS.Quantile.Count.Paritition", paste(new_subsets, collapse = "."), sep = ".")
+    }
+  } else {
+    new_subsets <- NA
+    quantile_col <- "PRS.Quantile.Partition"
+    quantile_count_col <- "PRS.Quantile.Count.Paritition"
+  }
+  cols <- list()
+  for(i in 1:length(colnames(new_df))) {
+    cols[[colnames(new_df)[i]]] <- i
+  }
+  quantiles.counts <- do.call(rbind, apply(new_df, 1, function(x) {
+    part <- as.character(x[cols$PRS.Partition])
+    prs <- as.numeric(x[cols$PRS])
+    tmp_df <- new_df[new_df$PRS.Partition == part,]
+    if(!is.na(new_subsets)) {
+      for(i in 1:length(new_subsets)) {
+        s <- new_subsets[i]
+        group <- as.character(x[cols[[s]]])
+        tmp_df <- tmp_df[tmp_df[[s]] == group,]
+      }
+    }
+    pctls <- quantile(tmp_df$PRS, c(frac, 1 - frac))
+    pctl_bottom <- pctls[1]
+    pctl_top <- pctls[2]
+    group.count <- data.frame(group = character(1), count = numeric(1))
+    if (prs <= pctl_bottom) {
+      group.count$group <- "BOTTOM"
+      group.count$count <- sum(tmp_df$PRS <= pctl_bottom)
+    } else if (prs > pctl_top) {
+      group.count$group <- "TOP"
+      group.count$count <- sum(tmp_df$PRS > pctl_top)
+    } else {
+      group.count$group <- "MIDDLE"
+      group.count$count <- sum(tmp_df$PRS > pctl_bottom & tmp_df$PRS <= pctl_top)
+    }
+    return(group.count)
+  }))
+  colnames(quantiles.counts) <- c(quantile_col, quantile_count_col)
+  new_df <- cbind(new_df, quantiles.counts)
+  return(new_df)
+}
