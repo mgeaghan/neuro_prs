@@ -108,11 +108,10 @@ prs_violin_cc_partition <- function(df, title = "PRS Violin Plots - Case vs Cont
            facet_wrap(~ PRS.Partition, ncol = 4, scales = "free_y"))
 }
 
-# label and count extreme PRS values
+# label extreme PRS values
 prs_extremes <- function(df, frac, subsets = NA) {
   # given a fraction, identify and label each PRS as "TOP", "BOTTOM", or "MIDDLE" depending on whether it is in the top, bottom, or middle fraction of PRS
-  # PRS quantiles are calculated relative to the groups in the given column
-  # additionally, add three count columns, giving the total number of PRS within the top, bottom, and middle fractions of scores
+  # PRS quantiles are calculated relative to the PRS partition group and any additional groups in the given subset columns
   new_df <- df
   new_df$PRS.Partition <- as.character(new_df$PRS.Partition)
   if(!is.na(subsets)) {
@@ -120,18 +119,15 @@ prs_extremes <- function(df, frac, subsets = NA) {
     if (length(new_subsets) == 0) {
       new_subsets <- NA
       quantile_col <- "PRS.Quantile.Partition"
-      quantile_count_col <- "PRS.Quantile.Count.Paritition"
     } else {
       for(s in new_subsets) {
         new_df[[s]] <- as.character(new_df[[s]])
       }
       quantile_col <- paste("PRS.Quantile.Partition", paste(new_subsets, collapse = "."), sep = ".")
-      quantile_count_col <- paste("PRS.Quantile.Count.Paritition", paste(new_subsets, collapse = "."), sep = ".")
     }
   } else {
     new_subsets <- NA
     quantile_col <- "PRS.Quantile.Partition"
-    quantile_count_col <- "PRS.Quantile.Count.Paritition"
   }
   cols <- list()
   for(i in 1:length(colnames(new_df))) {
@@ -151,20 +147,85 @@ prs_extremes <- function(df, frac, subsets = NA) {
     pctls <- quantile(tmp_df$PRS, c(frac, 1 - frac))
     pctl_bottom <- pctls[1]
     pctl_top <- pctls[2]
-    group.count <- data.frame(group = character(1), count = numeric(1))
+    group.count <- data.frame(group = character(1))
     if (prs <= pctl_bottom) {
       group.count$group <- "BOTTOM"
-      group.count$count <- sum(tmp_df$PRS <= pctl_bottom)
     } else if (prs > pctl_top) {
       group.count$group <- "TOP"
-      group.count$count <- sum(tmp_df$PRS > pctl_top)
     } else {
       group.count$group <- "MIDDLE"
-      group.count$count <- sum(tmp_df$PRS > pctl_bottom & tmp_df$PRS <= pctl_top)
     }
     return(group.count)
   }))
-  colnames(quantiles.counts) <- c(quantile_col, quantile_count_col)
+  colnames(quantiles.counts) <- c(quantile_col)
   new_df <- cbind(new_df, quantiles.counts)
-  return(new_df)
+  return(structure(new_df, subsets = new_subsets, quantile_col = quantile_col))
+}
+
+prs_count_extremes <- function(df, subsets) {
+  # takes a data.frame produced by prs_extremes()
+  # calculates the proportion of PRS in the top, bottom, and middle ranges for each group in the given subset columns
+  if(is.na(subsets)) {
+    warning("Must supply a vector of subsets")
+    return(NA)
+  }
+  if(!is.na(attributes(df)$subsets)) {
+    new_subsets <- subsets[!(subsets %in% attributes(df)$subsets)]
+    if(is.na(new_subsets) || length(new_subsets) == 0) {
+      warning("Must supply a valid vector of subsets")
+      return(NA)
+    }
+    extreme_cols <- unique(c("PRS.Partition", attributes(df)$subsets))
+  } else {
+    new_subsets <- subsets
+    extreme_cols <- "PRS.Partition"
+  }
+  subset_groups <- unique(df[new_subsets])
+  extreme_groups <- unique(df[extreme_cols])
+  subset_groups_ncol <- dim(subset_groups)[2]
+  extreme_groups_ncol <- dim(extreme_groups)[2]
+  ret <- (do.call(rbind, apply(extreme_groups, 1, function(x) {
+    e_groups <- list()
+    for(i in 1:extreme_groups_ncol) {
+      e_groups[[i]] <- as.character(x[i])
+    }
+    names(e_groups) <- colnames(extreme_groups)
+    new_df_e <- df[df[[names(e_groups)[1]]] == e_groups[[1]],]
+    if(extreme_groups_ncol > 1) {
+      for(idx in 2:extreme_groups_ncol) {
+        new_df_e <- new_df_e[new_df_e[[names(e_groups)[idx]]] == e_groups[[idx]],]
+      }
+    }
+    return(do.call(rbind, apply(subset_groups, 1, function(y) {
+      s_groups <- list()
+      for(j in 1:subset_groups_ncol) {
+        s_groups[[j]] <- as.character(y[j])
+      }
+      names(s_groups) <- colnames(subset_groups)
+      new_df_s <- new_df_e[new_df_e[[names(s_groups)[1]]] == s_groups[[1]],]
+      if(subset_groups_ncol > 1) {
+        for(jdx in 2:subset_groups_ncol) {
+          new_df_s <- new_df_s[new_df_s[[names(s_groups)[jdx]]] == s_groups[[jdx]],]
+        }
+      }
+      # count top, bottom and middle in new_df_s
+      count_top <- sum(new_df_s[[attributes(df)$quantile_col]] == "TOP")
+      count_bottom <- sum(new_df_s[[attributes(df)$quantile_col]] == "BOTTOM")
+      count_middle <- sum(new_df_s[[attributes(df)$quantile_col]] == "MIDDLE")
+      # count total in new_df_e
+      count_total <- dim(new_df_e)[1]
+      prop_top <- count_top/count_total
+      prop_bottom <- count_bottom/count_total
+      prop_middle <- count_middle/count_total
+      return(data.frame(e_groups, s_groups,
+                        count_top = count_top,
+                        count_bottom = count_bottom,
+                        count_middle = count_middle,
+                        count_total = count_total,
+                        prop_top = prop_top,
+                        prop_bottom = prop_bottom,
+                        prop_middle = prop_middle))
+    })))
+  })))
+  return(structure(ret, subsets = new_subsets, extreme_subsets = extreme_cols))
 }
