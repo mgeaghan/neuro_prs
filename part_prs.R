@@ -108,6 +108,12 @@ prs_violin_cc_partition <- function(df, title = "PRS Violin Plots - Case vs Cont
            facet_wrap(~ PRS.Partition, ncol = 4, scales = "free_y"))
 }
 
+prs_col_extreme_counts <- function(df, x, y, title = "PRS Column Plots - Counts for PRS in Top/Bottom Ranges", facet_cols, range_col) {
+  return(ggplot(df) +
+           geom_col(aes_(x = as.name(x), y = as.name(y), fill = as.name(range_col))) +
+           facet_wrap(as.formula(paste("~", paste(facet_cols, collapse = " + "), sep = " ")), ncol = 4))
+}
+
 # label extreme PRS values
 prs_extremes <- function(df, frac, subsets = NA) {
   # given a fraction, identify and label each PRS as "TOP", "BOTTOM", or "MIDDLE" depending on whether it is in the top, bottom, or middle fraction of PRS
@@ -249,5 +255,5 @@ prs_count_extremes <- function(df, subsets, long = TRUE) {
     ret <- ret[colnames(ret) != "PRS.Proportion.Range"]
     colnames(ret)[colnames(ret) == "PRS.Count.Range"] <- attributes(df)$quantile_col
   }
-  return(structure(ret, subsets = new_subsets, extreme_subsets = extreme_cols))
+  return(structure(ret, subsets = new_subsets, extreme_subsets = extreme_cols, quantile_col = attributes(df)$quantile_col))
 }
