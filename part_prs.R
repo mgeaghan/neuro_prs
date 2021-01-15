@@ -162,7 +162,7 @@ prs_extremes <- function(df, frac, subsets = NA) {
   return(structure(new_df, subsets = new_subsets, quantile_col = quantile_col))
 }
 
-prs_count_extremes <- function(df, subsets) {
+prs_count_extremes <- function(df, subsets, long = TRUE) {
   # takes a data.frame produced by prs_extremes()
   # calculates the proportion of PRS in the top, bottom, and middle ranges for each group in the given subset columns
   if(is.na(subsets)) {
@@ -227,5 +227,27 @@ prs_count_extremes <- function(df, subsets) {
                         prop_middle = prop_middle))
     })))
   })))
+  if(long) {
+    df_count <- ret[!grepl("prop_", colnames(ret))]
+    df_prop <- ret[!grepl("count_", colnames(ret))]
+    df_count_id_vars <- colnames(df_count)[(!grepl("count_", colnames(df_count))) | grepl("count_total", colnames(df_count))]
+    df_prop_id_vars <- colnames(df_prop)[!grepl("prop_", colnames(df_prop))]
+    df_count_long <- melt(df_count, id.vars = df_count_id_vars)
+    df_prop_long <- melt(df_prop, id.vars = df_prop_id_vars)
+    df_count_long$variable <- as.character(df_count_long$variable)
+    df_prop_long$variable <- as.character(df_prop_long$variable)
+    df_count_long$variable[df_count_long$variable == "count_top"] <- "TOP"
+    df_count_long$variable[df_count_long$variable == "count_bottom"] <- "BOTTOM"
+    df_count_long$variable[df_count_long$variable == "count_middle"] <- "MIDDLE"
+    df_prop_long$variable[df_prop_long$variable == "prop_top"] <- "TOP"
+    df_prop_long$variable[df_prop_long$variable == "prop_bottom"] <- "BOTTOM"
+    df_prop_long$variable[df_prop_long$variable == "prop_middle"] <- "MIDDLE"
+    colnames(df_count_long)[colnames(df_count_long) %in% c("variable", "value")] <- c("PRS.Count.Range", "Count")
+    colnames(df_prop_long)[colnames(df_prop_long) %in% c("variable", "value")] <- c("PRS.Proportion.Range", "Proportion")
+    common_cols <- colnames(df_prop_long) %in% colnames(df_count_long)
+    ret <- cbind(df_count_long, df_prop_long[!common_cols])
+    ret <- ret[colnames(ret) != "PRS.Proportion.Range"]
+    colnames(ret)[colnames(ret) == "PRS.Count.Range"] <- attributes(df)$quantile_col
+  }
   return(structure(ret, subsets = new_subsets, extreme_subsets = extreme_cols))
 }
